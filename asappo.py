@@ -12,11 +12,11 @@ class ASAPPO:
     def __init__(self, weights_path):
         self.appo = APPOHolder(path=weights_path)
         
-    def act(self, env, observations):
+    def act(self, env, observations, max_episode_steps=64):
         positions = env.get_agents_xy()
         targets = env.get_targets_xy()
-        conflicting = self._find_conflicts(positions, targets, env.grid.config.obs_radius)
-        actions_for_confl = coop_astar(conflicting, env.grid.config.num_agents, env.grid, manhattan_distance, SearchTree)
+        conflicting = self._find_conflicts(positions, targets, env.grid.config.obs_radius - 2)
+        actions_for_confl = coop_astar(conflicting, env.grid.config.num_agents, env.grid, manhattan_distance, SearchTree, max_episode_steps)
         if observations[0].shape[-1] != 11:
             init_dim = observations[0].shape[1]
             obs_ = [np.zeros((observations[0].shape[0], 11, 11)) for _ in range(len(observations))]

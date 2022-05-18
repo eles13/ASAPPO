@@ -7,62 +7,82 @@ import numpy as np
 from time import time
 import torch
 import random
+import json
 torch.manual_seed(13)
 random.seed(13)
 np.random.seed(13)
 
 if __name__ == '__main__':
 
-    grid_config = GridConfig(num_agents=32,  # number of agents
-                         size=16, # size of the grid
-                         density=0.4,  # obstacle density
-                         seed=11,  # set to None for random 
-                                  # obstacles, agents and targets 
-                                  # positions at each reset
-                         max_episode_steps=32,  # horizon
-                         obs_radius=5,  # defines field of view
+    configs = [
+        GridConfig(num_agents=24,
+                         size=12,
+                         density=0.3,
+                         seed=i, 
+                         max_episode_steps=32,
+                         obs_radius=5,
                          )
+        for i in range(50)
+    ]
+    results =  {'ASAPPO': [], 'APPO': []}
+    for grid_config in configs:
 
-    env = gym.make("Pogema-v0", grid_config=grid_config, integration="SampleFactory")
-    
+        env = gym.make("Pogema-v0", grid_config=grid_config, integration="SampleFactory")
+        
 
-    obs = env.reset()
-    env.render()
-    done = [False, ...]
-    info = {}
-    reward = [0, ...]
+        obs = env.reset()
+        env.render()
+        done = [False, ...]
+        info = {}
+        reward = [0, ...]
 
-    asappo = ASAPPO('weights/c164')
-    appo = APPOHolder('weights/c164')
+        asappo = ASAPPO('weights/c164')
+        appo = APPOHolder('weights/c164')
 
-    frame = 0
-    start = time()
-    while not all(done):
-        obs, reward, done, info = asappo.act(env, obs)
-        #env.render()
-        frame += 1
-    
-    print(frame/(time() - start), frame)
-    print(info[0]['episode_extra_stats']['CSR'])
-    print(np.mean([x['episode_extra_stats']['ISR'] for x in info]))
+        frame = 0
+        start = time()
+        while not all(done):
+            obs, reward, done, info = asappo.act(env, obs, 32)
+            #env.render()
+            frame += 1
 
-    env = gym.make("Pogema-v0", grid_config=grid_config, integration="SampleFactory")
-    
+        results['ASAPPO'].append({'CSR': info[0]['episode_extra_stats']['CSR'], 
+                                  'ISR': np.mean([x['episode_extra_stats']['ISR'] for x in info]),
+                                  'makespan': frame, 'FPS': frame/(time() - start)})
 
-    obs = env.reset()
-    done = [False, ...]
-    info = {}
-    reward = [0, ...]
+        env = gym.make("Pogema-v0", grid_config=grid_config, integration="SampleFactory")
+        
 
-    appo = APPOHolder('weights/c164')
+        observations = env.reset()
+        done = [False, ...]
+        info = {}
+        reward = [0, ...]
 
-    frame = 0
-    start = time()
-    while not all(done):
-        actions = appo.act(obs)
-        obs, reward, done, info = env.step(actions)
-        frame += 1
+        frame = 0
+        start = time()
+        while not all(done):
+            if observations[0].shape[-1] != 11:
+                init_dim = observations[0].shape[1]
+                obs_ = [np.zeros((observations[0].shape[0], 11, 11)) for _ in range(len(observations))]
+                for i in range(len(obs_)):
+                    obs_[i][:, :init_dim,:init_dim] = observations[i]
+                observations = obs_
+            actions = appo.act(observations)
+            observations, reward, done, info = env.step(actions)
+            frame += 1
 
-    print(frame/(time() - start), frame)
-    print(info[0]['episode_extra_stats']['CSR'])
-    print(np.mean([x['episode_extra_stats']['ISR'] for x in info]))
+        results['APPO'].append({'CSR': info[0]['episode_extra_stats']['CSR'], 
+                                  'ISR': np.mean([x['episode_extra_stats']['ISR'] for x in info]),
+                                  'makespan': frame, 'FPS': frame/(time() - start)})
+    #print(results)
+    results['ASAPPO'] = {'CSR': np.mean([x['CSR'] for x in results['ASAPPO']]), 
+                         'ISR': np.mean([x['ISR'] for x in results['ASAPPO']]),
+                         'makespan': np.mean([x['makespan'] for x in results['ASAPPO']]),
+                         'FPS': np.mean([x['FPS'] for x in results['ASAPPO']])}
+    results['APPO'] = {'CSR': np.mean([x['CSR'] for x in results['APPO']]), 
+                         'ISR': np.mean([x['ISR'] for x in results['APPO']]),
+                         'makespan': np.mean([x['makespan'] for x in results['APPO']]),
+                         'FPS': np.mean([x['FPS'] for x in results['APPO']])}
+    print(results)
+    with open('result.json', 'w') as fout:
+        json.dump(results, fout)

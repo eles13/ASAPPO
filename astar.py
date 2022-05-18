@@ -23,10 +23,10 @@ class SearchTree:
     
     def get_best_node_from_open(self):
         best = heappop(self._open)
-        # while self.was_expanded(best):
-        #     if self.open_is_empty():
-        #         return None
-        #     best = heappop(self._open)
+        while self.was_expanded(best):
+            if self.open_is_empty():
+                return None
+            best = heappop(self._open)
         return best
 
     def add_to_closed(self, item):
@@ -81,14 +81,13 @@ def get_neighbors(ag, i, j, t, grid, block_table):
         # or (i + dx, j + dy) in grid.finishes_xy and not grid.is_active(grid.finishes_xy.index((i + dx, j + dy)))) and \
         if (grid.obstacles[i + dx, j + dy] == 0) and \
             (i + dx, j + dy, t + 1) not in block_table and \
-                ((i,j,t+1) in block_table and (i+dx, j+dy, t) in block_table and block_table[(i,j,t+1)] != block_table[(i+dx, j+dy, t)] or \
-                     (i,j,t+1) not in block_table or (i+dx, j+dy, t) not in block_table):
+                ((i,j,t+1) in block_table and (i+dx, j+dy, t) in block_table and block_table[(i,j,t+1)] != block_table[(i+dx, j+dy, t)]):
             availabes.append((i + dx, j + dy, idx))
         #print(ag, availabes, t)
     return availabes
 
 
-def local_astar(ag, num_agents, grid, heuristic_func = None, search_tree = None, block_table={}):
+def local_astar(ag, num_agents, grid, heuristic_func = None, search_tree = None, block_table={}, max_sim_steps=64):
     ast = search_tree()
     steps = 0
     start_i, start_j = grid.positions_xy[ag]
@@ -97,7 +96,7 @@ def local_astar(ag, num_agents, grid, heuristic_func = None, search_tree = None,
     
     ast.add_to_open(start)
     
-    while not ast.open_is_empty():
+    while not ast.open_is_empty() and steps < max_sim_steps:
         #print(ast.OPEN)
         steps += 1
         curr = ast.get_best_node_from_open()
@@ -108,8 +107,8 @@ def local_astar(ag, num_agents, grid, heuristic_func = None, search_tree = None,
             return curr, steps - 1
         
         for (i, j, moveidx) in get_neighbors(ag, curr.i, curr.j, curr.g, grid, block_table):
-            # if ast.was_expanded(Node(i, j)):
-            #     continue
+            if ast.was_expanded(Node(i, j)):
+                continue
             succ = Node(i, j, g=curr.g+1, h=heuristic_func(i, j, goal_i, goal_j), parent=curr, action=moveidx)
             ast.add_to_open(succ)    
                 
@@ -135,7 +134,7 @@ def coop_astar(conflicting, num_agents, grid, heuristic_func = None, search_tree
         # if ag in [0,7]:
         #     print(ag, block_table)
         if grid.finishes_xy[ag] != grid.positions_xy[ag]:
-            finalnode, steps = local_astar(ag, num_agents, grid, heuristic_func, search_tree, block_table)
+            finalnode, steps = local_astar(ag, num_agents, grid, heuristic_func, search_tree, block_table, max_sim_steps)
             # if ag in [0,7]:
             #     print(finalnode, steps)
             if finalnode:
